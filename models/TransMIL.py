@@ -21,9 +21,10 @@ class TransLayer(nn.Module):
         )
 
     def forward(self, x):
-        x = x + self.attn(self.norm(x))
+        out,a= self.attn(self.norm(x), return_attn=True)
+        x = x + out
 
-        return x
+        return x, a
 
 
 class PPEG(nn.Module):
@@ -74,13 +75,17 @@ class TransMIL(nn.Module):
         h = torch.cat((cls_tokens, h), dim=1)
 
         #---->Translayer x1
-        h = self.layer1(h) #[B, N, 512]
+        h, a = self.layer1(h) #[B, N, 512]
 
         #---->PPEG
         h = self.pos_layer(h, _H, _W) #[B, N, 512]
         
         #---->Translayer x2
-        h = self.layer2(h) #[B, N, 512]
+        h, a = self.layer2(h) #[B, N, 512]
+
+
+        attn =  torch.mean(a[:,:, 0], dim=1)
+
 
         #---->cls_token
         h = self.norm(h)[:,0]
@@ -89,7 +94,7 @@ class TransMIL(nn.Module):
         logits = self._fc2(h) #[B, n_classes]
         Y_hat = torch.argmax(logits, dim=1)
         Y_prob = F.softmax(logits, dim = 1)
-        results_dict = {'logits': logits, 'Y_prob': Y_prob, 'Y_hat': Y_hat}
+        results_dict = {'logits': logits, 'Y_prob': Y_prob, 'Y_hat': Y_hat, 'A':attn}
         return results_dict
 
 if __name__ == "__main__":
